@@ -704,3 +704,51 @@ def trust_region_minimize(f, grad, hess, theta0, n_iter=200, lam0=1.0, tol=1e-8)
 
     return np.array(path, dtype=float)
 
+# Step 10 - bfgs_update_inverse
+def bfgs_update_hessian(B, s, y):
+    # Convert inputs to floating-point NumPy arrays.
+    B = np.asarray(B, dtype=float)
+    s = np.asarray(s, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    # Calculate the necessary matrix and vector products.
+    Bs = B @ s
+    ys = np.dot(y, s)
+    sBs = np.dot(s, Bs)
+
+    # BFGS Hessian update:
+    # B_new = B + (y @ y.T) / (y.T @ s)
+    #           - (B @ s @ s.T @ B) / (s.T @ B @ s)
+    B_new = (
+        B
+        + np.outer(y, y) / ys
+        - np.outer(Bs, Bs) / sBs
+    )
+
+    return B_new
+
+
+def bfgs_update_inverse(C, s, y):
+    # Convert inputs to floating-point NumPy arrays.
+    C = np.asarray(C, dtype=float)
+    s = np.asarray(s, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    # Calculate the curvature term.
+    ys = np.dot(y, s)
+
+    # Identity matrix with the same dimension as C.
+    I = np.eye(C.shape[0])
+
+    # Construct the two transformation matrices.
+    left = I - np.outer(s, y) / ys
+    right = I - np.outer(y, s) / ys
+
+    # BFGS inverse Hessian update.
+    C_new = (
+        left @ C @ right
+        + np.outer(s, s) / ys
+    )
+
+    return C_new
+

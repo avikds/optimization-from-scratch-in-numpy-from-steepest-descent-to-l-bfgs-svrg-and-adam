@@ -19,6 +19,7 @@ python scaffold.py
 - [x] **7.** heavy_ball
 - [x] **8.** newton_minimize
 - [x] **9.** trust_region_minimize
+- [x] **10.** bfgs_update_inverse
 
 ---
 
