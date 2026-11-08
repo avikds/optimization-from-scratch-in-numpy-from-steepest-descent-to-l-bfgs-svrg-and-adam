@@ -26,6 +26,7 @@ python scaffold.py
 - [x] **14.** lbfgs_minimize
 - [x] **15.** lms
 - [x] **16.** lr_schedule
+- [x] **17.** sgd_minibatch
 
 ---
 

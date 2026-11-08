@@ -1130,3 +1130,56 @@ def robbins_monro_ratio(kind, T, **params):
     # Return the Robbins-Monro ratio as a Python float.
     return float(sum_squared / sum_linear)
 
+# Step 17 - sgd_minibatch
+def sgd_minibatch(problem, w0, schedule, batch_size, n_epochs, seed=0, average_from=0):
+    # Initialize the random number generator.
+    rng = np.random.default_rng(seed)
+
+    # Create a floating-point copy of the initial parameters.
+    w = np.array(w0, dtype=float, copy=True)
+
+    # Initialize the Polyak-Ruppert running average.
+    avg = w.copy()
+
+    # Number of iterates included in the running average.
+    k = 0
+
+    # Count the total number of minibatch updates.
+    t = 0
+
+    # Perform the specified number of epochs.
+    for epoch in range(n_epochs):
+
+        # Generate a new random permutation at the beginning of each epoch.
+        perm = rng.permutation(problem.N)
+
+        # Process the shuffled dataset in consecutive minibatches.
+        # The final minibatch may contain fewer examples.
+        for start in range(0, problem.N, batch_size):
+
+            # Extract the current minibatch.
+            chunk = perm[start:start + batch_size]
+
+            # Obtain the learning rate for the current update.
+            eta = schedule(t)
+
+            # Calculate the minibatch gradient and update the parameters.
+            w = w - eta * problem.grad_i(w, chunk)
+
+            # Increment the update counter.
+            t += 1
+
+            # Update the running average after the specified threshold.
+            if t > average_from:
+                k += 1
+                avg = avg + (w - avg) / k
+
+        # Record the objective value and data passes after each epoch.
+        problem.checkpoint(w)
+
+    # Return the final parameters and their running average.
+    return {
+        "w": w,
+        "avg": avg
+    }
+
