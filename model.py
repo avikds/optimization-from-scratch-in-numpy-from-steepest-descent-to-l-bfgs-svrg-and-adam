@@ -303,3 +303,97 @@ def max_stable_step(A):
     # Maximum stable step size: 2 / largest eigenvalue.
     return float(2.0 / eigenvalues[-1])
 
+# Step 5 - steepest_descent_exact
+def exact_step(A, b, theta, d):
+    # Convert inputs to floating-point NumPy arrays.
+    theta = np.asarray(theta, dtype=float)
+    d = np.asarray(d, dtype=float)
+
+    # Gradient of the quadratic objective at theta.
+    grad = A @ theta + b
+
+    # Exact line search:
+    # eta = -(d.T @ grad) / (d.T @ A @ d)
+    numerator = -np.dot(d, grad)
+    denominator = np.dot(d, A @ d)
+
+    if denominator == 0.0:
+        return 0.0
+
+    return float(numerator / denominator)
+
+
+def steepest_descent_exact(A, b, theta0, n_iter):
+    # Create a floating-point copy of the initial point.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Store every iterate, beginning with the initial point.
+    path = [theta.copy()]
+
+    for _ in range(n_iter):
+        # Calculate the gradient.
+        grad = A @ theta + b
+
+        # Steepest descent direction.
+        d = -grad
+
+        # Stop before taking a step if the gradient norm is sufficiently small.
+        if np.dot(d, d) < 1e-28:
+            break
+
+        # Calculate the exact optimal step size.
+        eta = exact_step(A, b, theta, d)
+
+        # Update the parameters.
+        theta = theta + eta * d
+
+        # Store the new iterate.
+        path.append(theta.copy())
+
+    return np.array(path, dtype=float)
+
+
+def rate_bound(kappa):
+    # Theoretical convergence-rate bound from equation 8.29.
+    mu = ((kappa - 1.0) / (kappa + 1.0)) ** 2
+
+    return float(mu)
+
+
+def worst_case_start(A, b):
+    # Calculate the eigenvalues and corresponding eigenvectors.
+    eigenvalues, eigenvectors = np.linalg.eigh(A)
+
+    # Smallest and largest eigenvalues.
+    lambda_min = eigenvalues[0]
+    lambda_max = eigenvalues[-1]
+
+    # Corresponding normalized eigenvectors.
+    q_min = eigenvectors[:, 0]
+    q_max = eigenvectors[:, -1]
+
+    # Calculate the optimal solution of the quadratic objective.
+    theta_star = np.linalg.solve(A, -b)
+
+    # Construct the worst-case starting point.
+    theta0 = (
+        theta_star
+        + q_min / lambda_min
+        + q_max / lambda_max
+    )
+
+    return theta0
+
+
+def observed_rates(losses, loss_star):
+    # Convert the loss sequence to a floating-point NumPy array.
+    losses = np.asarray(losses, dtype=float)
+
+    # Calculate consecutive ratios of objective gaps.
+    rates = (
+        (losses[1:] - loss_star)
+        / (losses[:-1] - loss_star)
+    )
+
+    return rates
+

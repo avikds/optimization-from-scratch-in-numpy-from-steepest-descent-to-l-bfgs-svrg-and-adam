@@ -14,6 +14,7 @@ python scaffold.py
 - [x] **2.** valley_loss
 - [x] **3.** LogisticProblem
 - [x] **4.** gd_fixed
+- [x] **5.** steepest_descent_exact
 
 ---
 
