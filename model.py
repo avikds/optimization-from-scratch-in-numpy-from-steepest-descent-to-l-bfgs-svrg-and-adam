@@ -1183,3 +1183,72 @@ def sgd_minibatch(problem, w0, schedule, batch_size, n_epochs, seed=0, average_f
         "avg": avg
     }
 
+# Step 18 - svrg
+def max_smoothness(problem):
+    # Calculate the squared Euclidean norm of each data row.
+    row_norms_squared = np.sum(problem.X ** 2, axis=1)
+
+    # Maximum smoothness bound:
+    # L_max = max_n(||x_n||^2 / 4) + lambda
+    L_max = np.max(row_norms_squared) / 4.0 + problem.lam
+
+    return float(L_max)
+
+
+def svrg_gradient(problem, w, snapshot, mu, n):
+    # Calculate the stochastic gradient at the current parameters.
+    grad_current = problem.grad_i(w, n)
+
+    # Calculate the stochastic gradient at the snapshot.
+    grad_snapshot = problem.grad_i(snapshot, n)
+
+    # SVRG variance-reduced gradient estimator.
+    gradient = grad_current - grad_snapshot + mu
+
+    return gradient
+
+
+def svrg(problem, w0, eta, n_epochs, inner=None, seed=0):
+    # Initialize the random number generator.
+    rng = np.random.default_rng(seed)
+
+    # Create a floating-point copy of the initial parameters.
+    w = np.array(w0, dtype=float, copy=True)
+
+    # Default number of inner iterations to the dataset size.
+    if inner is None:
+        inner = problem.N
+
+    # Perform the specified number of epochs.
+    for epoch in range(n_epochs):
+
+        # Take a copy of the current parameters as the snapshot.
+        snapshot = w.copy()
+
+        # Calculate the full gradient at the snapshot.
+        mu = problem.grad(snapshot)
+
+        # Perform the stochastic inner updates.
+        for _ in range(inner):
+
+            # Randomly select one training example.
+            n = int(rng.integers(problem.N))
+
+            # Calculate the variance-reduced gradient.
+            v = svrg_gradient(
+                problem,
+                w,
+                snapshot,
+                mu,
+                n
+            )
+
+            # Update the parameters.
+            w = w - eta * v
+
+        # Record the objective value and computation cost.
+        problem.checkpoint(w)
+
+    # Return the final parameters.
+    return w
+
