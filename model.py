@@ -582,3 +582,49 @@ def iters_to_gap(path, f, f_star, tol):
     # Return None if no iterate reaches the target.
     return None
 
+# Step 8 - newton_minimize
+def newton_minimize(f, grad, hess, theta0, n_iter, line_search=True, tol=1e-10):
+    # Create a floating-point copy of the initial parameters.
+    # This ensures theta0 is not modified.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Store all iterates, starting with the initial point.
+    path = [theta.copy()]
+
+    for _ in range(n_iter):
+        # Calculate the gradient at the current point.
+        g = np.asarray(grad(theta), dtype=float)
+
+        # Stop if the gradient norm is sufficiently small.
+        if np.linalg.norm(g) <= tol:
+            break
+
+        # Calculate the Hessian at the current point.
+        H = np.asarray(hess(theta), dtype=float)
+
+        # Solve the Newton system:
+        # H @ d = -g
+        d = np.linalg.solve(H, -g)
+
+        # Choose the step size.
+        if line_search:
+            # Use Armijo backtracking with an initial step size of 1.0.
+            eta = armijo_backtrack(
+                f,
+                theta,
+                d,
+                g,
+                eta0=1.0
+            )
+        else:
+            # Use the full Newton step without line search.
+            eta = 1.0
+
+        # Update the parameters.
+        theta = theta + eta * d
+
+        # Store the current iterate.
+        path.append(theta.copy())
+
+    return np.array(path, dtype=float)
+

@@ -17,6 +17,7 @@ python scaffold.py
 - [x] **5.** steepest_descent_exact
 - [x] **6.** steepest_descent_armijo
 - [x] **7.** heavy_ball
+- [x] **8.** newton_minimize
 
 ---
 
