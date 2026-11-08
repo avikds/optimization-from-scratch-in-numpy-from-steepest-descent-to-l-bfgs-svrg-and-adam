@@ -37,6 +37,7 @@ python scaffold.py
 - [x] **25.** simplex_lp
 - [x] **26.** ista
 - [x] **27.** prox_quant
+- [x] **28.** em_gmm
 
 ---
 
