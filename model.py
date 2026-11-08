@@ -1302,3 +1302,132 @@ def saga(problem, w0, eta, n_steps, seed=0):
     # Return the final parameters and gradient table.
     return w, table
 
+# Step 20 - adagrad_update
+def adagrad_update(theta, g, state, eta=0.1, eps=1e-6):
+    # Convert inputs to floating-point NumPy arrays.
+    theta = np.asarray(theta, dtype=float)
+    g = np.asarray(g, dtype=float)
+
+    # Retrieve the previous accumulated squared gradients.
+    # Initialize with zeros if this is the first update.
+    s_old = np.asarray(
+        state.get("s", np.zeros_like(g)),
+        dtype=float
+    )
+
+    # Accumulate squared gradients.
+    s = s_old + g**2
+
+    # Apply the adaptive AdaGrad update.
+    new_theta = theta - eta * g / np.sqrt(s + eps)
+
+    # Return a new state dictionary without modifying the original.
+    new_state = {
+        "s": s
+    }
+
+    return new_theta, new_state
+
+
+def rmsprop_update(theta, g, state, eta=0.001, beta=0.9, eps=1e-6):
+    # Convert inputs to floating-point NumPy arrays.
+    theta = np.asarray(theta, dtype=float)
+    g = np.asarray(g, dtype=float)
+
+    # Retrieve the previous exponential moving average of squared gradients.
+    s_old = np.asarray(
+        state.get("s", np.zeros_like(g)),
+        dtype=float
+    )
+
+    # Update the moving average of squared gradients.
+    s = beta * s_old + (1.0 - beta) * g**2
+
+    # Apply the RMSProp adaptive update.
+    new_theta = theta - eta * g / np.sqrt(s + eps)
+
+    # Return a new state dictionary.
+    new_state = {
+        "s": s
+    }
+
+    return new_theta, new_state
+
+
+def adadelta_update(theta, g, state, eta=1.0, beta=0.9, eps=1e-6):
+    # Convert inputs to floating-point NumPy arrays.
+    theta = np.asarray(theta, dtype=float)
+    g = np.asarray(g, dtype=float)
+
+    # Retrieve the previous moving average of squared gradients.
+    s_old = np.asarray(
+        state.get("s", np.zeros_like(g)),
+        dtype=float
+    )
+
+    # Retrieve the previous moving average of squared updates.
+    delta_old = np.asarray(
+        state.get("delta", np.zeros_like(g)),
+        dtype=float
+    )
+
+    # Update the moving average of squared gradients.
+    s = beta * s_old + (1.0 - beta) * g**2
+
+    # Calculate the parameter update using the OLD delta average.
+    Delta = (
+        -eta
+        * np.sqrt(delta_old + eps)
+        / np.sqrt(s + eps)
+        * g
+    )
+
+    # Update the parameters.
+    new_theta = theta + Delta
+
+    # Update the moving average of squared parameter updates.
+    delta = beta * delta_old + (1.0 - beta) * Delta**2
+
+    # Return a new state dictionary.
+    new_state = {
+        "s": s,
+        "delta": delta
+    }
+
+    return new_theta, new_state
+
+
+def run_stochastic(problem, w0, update, n_epochs, batch_size=32, seed=0):
+    # Initialize the random number generator.
+    rng = np.random.default_rng(seed)
+
+    # Create a floating-point copy of the initial parameters.
+    w = np.array(w0, dtype=float, copy=True)
+
+    # Initialize the optimizer state.
+    state = {}
+
+    # Perform the specified number of epochs.
+    for epoch in range(n_epochs):
+
+        # Generate a new random permutation for this epoch.
+        perm = rng.permutation(problem.N)
+
+        # Process the shuffled dataset in consecutive minibatches.
+        for start in range(0, problem.N, batch_size):
+
+            # Extract the current minibatch.
+            chunk = perm[start:start + batch_size]
+
+            # Calculate the minibatch gradient.
+            g = problem.grad_i(w, chunk)
+
+            # Apply the selected adaptive optimizer.
+            w, state = update(w, g, state)
+
+        # Record the objective value after each epoch.
+        problem.checkpoint(w)
+
+    # Return the final optimized parameters.
+    return w
+

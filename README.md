@@ -29,6 +29,7 @@ python scaffold.py
 - [x] **17.** sgd_minibatch
 - [x] **18.** svrg
 - [x] **19.** saga
+- [x] **20.** adagrad_update
 
 ---
 
