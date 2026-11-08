@@ -38,6 +38,7 @@ python scaffold.py
 - [x] **26.** ista
 - [x] **27.** prox_quant
 - [x] **28.** em_gmm
+- [x] **29.** em_gmm_map
 
 ---
 

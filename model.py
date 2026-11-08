@@ -2348,3 +2348,217 @@ def em_gmm(X, pi, mu, Sigma, n_iter, tol=None):
         "r": r
     }
 
+# Step 29 - em_gmm_map
+def sample_book_mixture(N, D, rng):
+    """Three clusters in the first two coordinates, standard normal noise in the rest (Figure 8.26b)."""
+    means = np.array([[-1.0, 1.0], [1.0, -1.0], [3.0, -1.0]])
+    z = rng.integers(3, size=N)
+    rho = np.array([-0.7, 0.7, 0.9])[z]
+    X = rng.standard_normal((N, D))
+    X[:, 1] = rho * X[:, 0] + np.sqrt(1.0 - rho ** 2) * X[:, 1]
+    X[:, :2] += means[z]
+    return X
+
+
+def map_prior(X, K):
+    # Convert the dataset to a floating-point NumPy array.
+    X = np.asarray(X, dtype=float)
+
+    # Number of dimensions.
+    D = X.shape[1]
+
+    # Construct the diagonal inverse-Wishart scale matrix.
+    S0 = np.diag(X.var(axis=0)) / (K ** (2.0 / D))
+
+    # Degrees of freedom for the covariance prior.
+    nu0 = D + 2
+
+    return S0, nu0
+
+
+def log_prior(pi, Sigma, S0, nu0, alpha):
+    # Convert inputs to floating-point NumPy arrays.
+    pi = np.asarray(pi, dtype=float)
+    Sigma = np.asarray(Sigma, dtype=float)
+    S0 = np.asarray(S0, dtype=float)
+
+    # Number of mixture components and dimensions.
+    K = len(pi)
+    D = S0.shape[0]
+
+    # Dirichlet prior contribution.
+    prior_value = (alpha - 1.0) * np.sum(np.log(pi))
+
+    # Add the inverse-Wishart prior contribution
+    # for every covariance matrix.
+    for k in range(K):
+
+        # Cholesky decomposition ensures positive definiteness.
+        L = np.linalg.cholesky(Sigma[k])
+
+        # Calculate the log determinant of Sigma[k].
+        log_det = 2.0 * np.sum(np.log(np.diag(L)))
+
+        # Calculate trace(Sigma[k]^{-1} @ S0).
+        trace_term = np.trace(
+            np.linalg.solve(Sigma[k], S0)
+        )
+
+        # Add the inverse-Wishart log prior contribution.
+        prior_value += (
+            -0.5 * (nu0 + D + 2) * log_det
+            -0.5 * trace_term
+        )
+
+    return float(prior_value)
+
+
+def em_gmm_map(X, pi, mu, Sigma, n_iter, alpha=1.0, literal_book=False):
+    # Convert inputs to floating-point NumPy arrays.
+    X = np.asarray(X, dtype=float)
+    pi = np.array(pi, dtype=float, copy=True)
+    mu = np.array(mu, dtype=float, copy=True)
+    Sigma = np.array(Sigma, dtype=float, copy=True)
+
+    # Dataset dimensions.
+    N, D = X.shape
+    K = len(pi)
+
+    # Construct the covariance prior.
+    S0, nu0 = map_prior(X, K)
+
+    # Store the MAP objective values.
+    objective = []
+
+    # Store the latest responsibilities.
+    r = None
+
+    # Perform MAP-EM iterations.
+    for _ in range(n_iter):
+
+        # --------------------------------------------
+        # E-step: calculate responsibilities and
+        # the observed-data log likelihood.
+        # --------------------------------------------
+        r, ll = e_step(X, pi, mu, Sigma)
+
+        # Calculate the log prior.
+        lp = log_prior(pi, Sigma, S0, nu0, alpha)
+
+        # Store the MAP objective.
+        objective.append(float(ll + lp))
+
+        # --------------------------------------------
+        # M-step: obtain the maximum-likelihood
+        # estimates of the component parameters.
+        # --------------------------------------------
+        Nk = np.sum(r, axis=0)
+
+        _, mu_hat, Sigma_hat = m_step(X, r)
+
+        # --------------------------------------------
+        # Update mixture proportions using the
+        # Dirichlet prior.
+        # --------------------------------------------
+        pi = (
+            Nk + alpha - 1.0
+        ) / (
+            N + K * alpha - K
+        )
+
+        # Update component means.
+        mu = mu_hat
+
+        # --------------------------------------------
+        # Update covariance matrices using the
+        # inverse-Wishart prior.
+        # --------------------------------------------
+
+        if literal_book:
+            # Literal form as printed in the book.
+            # This intentionally omits the Nk multiplier.
+            numerator = S0[np.newaxis, :, :] + Sigma_hat
+
+        else:
+            # Correct MAP covariance update.
+            # The maximum-likelihood covariance must be
+            # multiplied by the effective component count.
+            numerator = (
+                S0[np.newaxis, :, :]
+                + Nk[:, np.newaxis, np.newaxis] * Sigma_hat
+            )
+
+        # Common denominator for both versions.
+        denominator = nu0 + Nk + D + 2
+
+        Sigma = numerator / denominator[:, np.newaxis, np.newaxis]
+
+        # Ensure numerical symmetry of the covariance matrices.
+        Sigma = 0.5 * (
+            Sigma + np.swapaxes(Sigma, 1, 2)
+        )
+
+    # Return the updated parameters, objective history,
+    # and latest responsibilities.
+    return {
+        "pi": pi,
+        "mu": mu,
+        "Sigma": Sigma,
+        "objective": objective,
+        "r": r
+    }
+
+
+def em_failure_rate(D, map_estimation, N=100, K=3, trials=5, n_iter=30, seed=0):
+    # Initialize one random generator for all trials.
+    rng = np.random.default_rng(seed)
+
+    # Count the number of failed trials.
+    failures = 0
+
+    for _ in range(trials):
+
+        # Generate synthetic data using Figure 8.26(b).
+        X = sample_book_mixture(N, D, rng)
+
+        # Randomly initialize component means.
+        mu = rng.standard_normal((K, D))
+
+        # Initialize equal mixture proportions.
+        pi = np.full(K, 1.0 / K)
+
+        # Initialize every covariance matrix to the identity.
+        Sigma = np.tile(
+            np.eye(D),
+            (K, 1, 1)
+        )
+
+        try:
+            if map_estimation:
+                # Run MAP-EM with the covariance prior.
+                em_gmm_map(
+                    X,
+                    pi,
+                    mu,
+                    Sigma,
+                    n_iter
+                )
+
+            else:
+                # Run ordinary maximum-likelihood EM.
+                em_gmm(
+                    X,
+                    pi,
+                    mu,
+                    Sigma,
+                    n_iter
+                )
+
+        except np.linalg.LinAlgError:
+            # Count singular or non-positive-definite
+            # covariance matrices as failures.
+            failures += 1
+
+    # Return the fraction of failed trials.
+    return float(failures / trials)
+
