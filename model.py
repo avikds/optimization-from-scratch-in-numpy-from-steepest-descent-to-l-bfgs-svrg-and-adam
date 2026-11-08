@@ -1480,3 +1480,160 @@ def adam_update(theta, g, state, eta=0.001, beta1=0.9, beta2=0.999, eps=1e-6, bi
 
     return new_theta, new_state
 
+# Step 22 - reddi_game
+def yogi_update(theta, g, state, eta=0.001, beta1=0.9, beta2=0.999, eps=1e-6):
+    # Convert inputs to floating-point NumPy arrays.
+    theta = np.asarray(theta, dtype=float)
+    g = np.asarray(g, dtype=float)
+
+    # Retrieve previous first and second moments.
+    m_old = np.asarray(
+        state.get("m", np.zeros_like(g)),
+        dtype=float
+    )
+
+    s_old = np.asarray(
+        state.get("s", np.zeros_like(g)),
+        dtype=float
+    )
+
+    # Update the first moment using Adam's rule.
+    m = beta1 * m_old + (1.0 - beta1) * g
+
+    # Update the second moment using Yogi's rule.
+    s = (
+        s_old
+        + (1.0 - beta2) * g**2 * np.sign(g**2 - s_old)
+    )
+
+    # Apply the parameter update without bias correction.
+    new_theta = theta - eta * m / (np.sqrt(s) + eps)
+
+    # Return a new state dictionary.
+    new_state = {
+        "m": m,
+        "s": s
+    }
+
+    return new_theta, new_state
+
+
+def amsgrad_update(theta, g, state, eta=0.001, beta1=0.9, beta2=0.999, eps=1e-6):
+    # Convert inputs to floating-point NumPy arrays.
+    theta = np.asarray(theta, dtype=float)
+    g = np.asarray(g, dtype=float)
+
+    # Retrieve previous first and second moments.
+    m_old = np.asarray(
+        state.get("m", np.zeros_like(g)),
+        dtype=float
+    )
+
+    s_old = np.asarray(
+        state.get("s", np.zeros_like(g)),
+        dtype=float
+    )
+
+    # Retrieve the previous maximum second-moment estimate.
+    s_max_old = np.asarray(
+        state.get("s_max", np.zeros_like(g)),
+        dtype=float
+    )
+
+    # Update the first moment using Adam's rule.
+    m = beta1 * m_old + (1.0 - beta1) * g
+
+    # Update the second moment using Adam's rule.
+    s = beta2 * s_old + (1.0 - beta2) * g**2
+
+    # Maintain the element-wise running maximum.
+    s_max = np.maximum(s_max_old, s)
+
+    # Apply the AMSGrad parameter update without bias correction.
+    new_theta = theta - eta * m / (np.sqrt(s_max) + eps)
+
+    # Return a new state dictionary.
+    new_state = {
+        "m": m,
+        "s": s,
+        "s_max": s_max
+    }
+
+    return new_theta, new_state
+
+
+def adopt_update(theta, g, state, eta=0.001, beta1=0.9, beta2=0.999, eps=1e-6):
+    # Convert inputs to floating-point NumPy arrays.
+    theta = np.asarray(theta, dtype=float)
+    g = np.asarray(g, dtype=float)
+
+    # Retrieve the previous first moment.
+    m_old = np.asarray(
+        state.get("m", np.zeros_like(g)),
+        dtype=float
+    )
+
+    # Retrieve the previous second moment.
+    # On the first update, use g squared as specified.
+    s_old = np.asarray(
+        state.get("s", g**2),
+        dtype=float
+    )
+
+    # Normalize the gradient using the previous second moment.
+    normalized_g = g / np.sqrt(s_old + eps)
+
+    # Update the first moment using the normalized gradient.
+    m = beta1 * m_old + (1.0 - beta1) * normalized_g
+
+    # Apply the ADOPT parameter update.
+    new_theta = theta - eta * m
+
+    # Update the second moment.
+    s = beta2 * s_old + (1.0 - beta2) * g**2
+
+    # Return a new state dictionary.
+    new_state = {
+        "m": m,
+        "s": s
+    }
+
+    return new_theta, new_state
+
+
+def reddi_game(update, T, C=1010.0, every=101, small=10.0, alpha=0.5):
+    # Initialize the parameter on the interval [-1, 1].
+    x = np.array([0.5], dtype=float)
+
+    # Initialize the optimizer state.
+    state = {}
+
+    # Initialize cumulative regret.
+    regret = 0.0
+
+    # Simulate the online optimization problem.
+    for t in range(1, T + 1):
+
+        # Determine the gradient for the current round.
+        if t % every == 1:
+            c = C
+        else:
+            c = -small
+
+        # Accumulate regret relative to the optimal fixed point x = -1.
+        regret += c * x[0] + c
+
+        # Perform the adaptive optimizer update.
+        x, state = update(
+            x,
+            np.array([c], dtype=float),
+            state,
+            eta=alpha / np.sqrt(t)
+        )
+
+        # Project the parameter back onto the interval [-1, 1].
+        x = np.clip(x, -1.0, 1.0)
+
+    # Return the final parameter and average regret as Python floats.
+    return float(x[0]), float(regret / T)
+
