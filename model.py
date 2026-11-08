@@ -479,3 +479,106 @@ def steepest_descent_armijo(f, grad, theta0, n_iter, eta0=1.0, c=1e-4, rho=0.5, 
 
     return path
 
+# Step 7 - heavy_ball
+def heavy_ball(grad, theta0, eta, beta, n_iter):
+    # Create a floating-point copy of the initial parameters.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Initialize the momentum vector to zero.
+    momentum = np.zeros_like(theta)
+
+    # Store all iterates, including the initial point.
+    path = np.empty((n_iter + 1, theta.size), dtype=float)
+    path[0] = theta
+
+    for t in range(n_iter):
+        # Update the momentum using the current gradient.
+        momentum = beta * momentum + np.asarray(grad(theta), dtype=float)
+
+        # Update the parameters using the momentum.
+        theta = theta - eta * momentum
+
+        # Store the current iterate.
+        path[t + 1] = theta
+
+    return path
+
+
+def nesterov(grad, theta0, eta, beta, n_iter):
+    # Create a floating-point copy of the initial parameters.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Initialize the previous iterate as theta_(-1) = theta_0.
+    theta_prev = theta.copy()
+
+    # Store all iterates, including the initial point.
+    path = np.empty((n_iter + 1, theta.size), dtype=float)
+    path[0] = theta
+
+    for t in range(n_iter):
+        # Calculate the look-ahead position.
+        theta_lookahead = theta + beta * (theta - theta_prev)
+
+        # Evaluate the gradient at the look-ahead position.
+        g = np.asarray(grad(theta_lookahead), dtype=float)
+
+        # Perform the gradient update.
+        theta_next = theta_lookahead - eta * g
+
+        # Update the previous and current iterates.
+        theta_prev = theta.copy()
+        theta = theta_next
+
+        # Store the current iterate.
+        path[t + 1] = theta
+
+    return path
+
+
+def tuned_momentum(m, L):
+    # Calculate the square roots of the strong convexity
+    # parameter and the smoothness constant.
+    sqrt_m = np.sqrt(m)
+    sqrt_L = np.sqrt(L)
+
+    # Heavy-ball optimal parameters.
+    eta_hb = 4.0 / (sqrt_L + sqrt_m)**2
+    beta_hb = ((sqrt_L - sqrt_m) / (sqrt_L + sqrt_m))**2
+
+    # Nesterov optimal parameters.
+    eta_nag = 1.0 / L
+    beta_nag = (sqrt_L - sqrt_m) / (sqrt_L + sqrt_m)
+
+    # Return the parameters as Python floats.
+    return {
+        "heavy_ball": (float(eta_hb), float(beta_hb)),
+        "nesterov": (float(eta_nag), float(beta_nag))
+    }
+
+
+def iters_to_gap(path, f, f_star, tol):
+    # Convert the iteration path to a NumPy array.
+    path = np.asarray(path, dtype=float)
+
+    # Calculate the initial objective value.
+    initial_loss = float(f(path[0]))
+
+    # Calculate the target relative objective gap.
+    target_gap = tol * (initial_loss - f_star)
+
+    # Check every iterate, including the initial point.
+    for t, theta in enumerate(path):
+        # Evaluate the objective at the current iterate.
+        loss = float(f(theta))
+
+        # NaN losses do not count as reaching the target.
+        if np.isnan(loss):
+            continue
+
+        # Check whether the required objective gap is reached.
+        if loss - f_star <= target_gap:
+            return int(t)
+
+    # Return None if no iterate reaches the target.
+    return None
+
