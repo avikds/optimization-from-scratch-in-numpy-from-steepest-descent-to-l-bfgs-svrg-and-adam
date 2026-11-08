@@ -813,3 +813,56 @@ def wolfe_line_search(f, grad, theta, d, eta0=1.0, c1=1e-4, c2=0.9, max_iter=40)
     # Return the current step size if the maximum iterations are reached.
     return float(eta)
 
+# Step 12 - bfgs_minimize
+def bfgs_minimize(f, grad, theta0, n_iter=200, tol=1e-8):
+    # Create a floating-point copy of the initial parameters.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Initialize the inverse Hessian approximation to the identity matrix.
+    C = np.eye(theta.size)
+
+    # Store all iterates, starting with the initial point.
+    path = [theta.copy()]
+
+    for _ in range(n_iter):
+        # Calculate the gradient at the current point.
+        g = np.asarray(grad(theta), dtype=float)
+
+        # Stop if the gradient norm is sufficiently small.
+        if np.linalg.norm(g) <= tol:
+            break
+
+        # Calculate the search direction using the inverse Hessian.
+        d = -C @ g
+
+        # Find the step size using the weak Wolfe line search.
+        eta = wolfe_line_search(
+            f,
+            grad,
+            theta,
+            d
+        )
+
+        # Calculate the next parameter vector.
+        theta_new = theta + eta * d
+
+        # Calculate the parameter difference.
+        s = theta_new - theta
+
+        # Calculate the gradient difference.
+        y = np.asarray(grad(theta_new), dtype=float) - g
+
+        # Update the inverse Hessian approximation only
+        # when the curvature condition is sufficiently positive.
+        if np.dot(y, s) > 1e-12:
+            C = bfgs_update_inverse(C, s, y)
+
+        # Accept the new parameter vector.
+        theta = theta_new
+
+        # Store the accepted iterate.
+        path.append(theta.copy())
+
+    # Return the complete iteration path and final inverse Hessian.
+    return np.array(path, dtype=float), C
+

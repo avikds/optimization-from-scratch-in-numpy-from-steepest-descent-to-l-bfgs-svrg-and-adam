@@ -21,6 +21,7 @@ python scaffold.py
 - [x] **9.** trust_region_minimize
 - [x] **10.** bfgs_update_inverse
 - [x] **11.** wolfe_line_search
+- [x] **12.** bfgs_minimize
 
 ---
 
