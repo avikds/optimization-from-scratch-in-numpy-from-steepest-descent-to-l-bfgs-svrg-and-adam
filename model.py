@@ -628,3 +628,79 @@ def newton_minimize(f, grad, hess, theta0, n_iter, line_search=True, tol=1e-10):
 
     return np.array(path, dtype=float)
 
+# Step 9 - trust_region_minimize
+def damped_newton_step(g, H, lam):
+    # Convert inputs to floating-point NumPy arrays.
+    g = np.asarray(g, dtype=float)
+    H = np.asarray(H, dtype=float)
+
+    # Construct the damped Hessian: H + lambda * I.
+    H_damped = H + lam * np.eye(H.shape[0])
+
+    # Solve the damped Newton system:
+    # (H + lambda * I) @ delta = -g
+    delta = np.linalg.solve(H_damped, -g)
+
+    return delta
+
+
+def trust_region_minimize(f, grad, hess, theta0, n_iter=200, lam0=1.0, tol=1e-8):
+    # Create a floating-point copy of the initial parameters.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Initialize the damping parameter.
+    lam = float(lam0)
+
+    # Store accepted iterates, beginning with the initial point.
+    path = [theta.copy()]
+
+    for _ in range(n_iter):
+        # Step 1: Compute the gradient and Hessian.
+        g = np.asarray(grad(theta), dtype=float)
+        H = np.asarray(hess(theta), dtype=float)
+
+        # Stop if the gradient norm is sufficiently small.
+        if np.linalg.norm(g) <= tol:
+            break
+
+        # Step 2: Adjust lambda to ensure the damped Hessian
+        # is positive definite.
+        smallest_eigenvalue = np.linalg.eigvalsh(H)[0]
+
+        lam = max(lam, -1.001 * smallest_eigenvalue)
+
+        # Step 3: Compute the damped Newton direction.
+        delta = damped_newton_step(g, H, lam)
+
+        # Calculate the predicted reduction from the quadratic model.
+        pred = -(
+            np.dot(g, delta)
+            + 0.5 * np.dot(delta, H @ delta)
+        )
+
+        # Step 4: If predicted reduction is extremely small,
+        # take the step, record it, and stop.
+        if pred < 1e-15:
+            theta = theta + delta
+            path.append(theta.copy())
+            break
+
+        # Step 5: Calculate the actual-to-predicted reduction ratio.
+        actual = f(theta) - f(theta + delta)
+        rho = actual / pred
+
+        # Step 6: Adjust the damping parameter according to rho.
+        if rho > 0.75:
+            lam *= 0.5
+        elif rho < 0.25:
+            lam *= 4.0
+
+        # Step 7: Accept the step only when actual reduction is positive.
+        if rho > 0.0:
+            theta = theta + delta
+            path.append(theta.copy())
+
+        # Otherwise, reject the step and remain at the current point.
+
+    return np.array(path, dtype=float)
+
