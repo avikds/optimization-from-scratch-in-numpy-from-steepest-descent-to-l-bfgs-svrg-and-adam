@@ -989,3 +989,63 @@ def lbfgs_minimize(f, grad, theta0, memory=10, n_iter=500, tol=1e-8):
     # Return the complete iteration path.
     return np.array(path, dtype=float)
 
+# Step 15 - lms
+def lms_data():
+    # Initialize the random number generator with the specified seed.
+    rs = np.random.RandomState(0)
+
+    # Generate 21 input values uniformly between -2 and 2.
+    x = rs.uniform(-2.0, 2.0, 21)
+
+    # Construct the design matrix with an intercept column.
+    X = np.column_stack([np.ones(21), x])
+
+    # Generate target values with additive Gaussian noise.
+    y = (
+        1.45 * X[:, 0]
+        + 0.92 * X[:, 1]
+        + rs.normal(0.0, 0.1, 21)
+    )
+
+    return X, y
+
+
+def lms(X, y, theta0, eta_fn, n_updates):
+    # Convert inputs to floating-point NumPy arrays.
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    # Create a floating-point copy of the initial parameters.
+    # This ensures theta0 is not modified.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Obtain the number of training examples and parameters.
+    N, D = X.shape
+
+    # Store all iterates, beginning with the initial parameters.
+    path = np.empty((n_updates + 1, D), dtype=float)
+    path[0] = theta
+
+    # Perform sequential LMS updates.
+    for t in range(1, n_updates + 1):
+        # Select the next training example in sequential order.
+        n = (t - 1) % N
+
+        # Extract the current input and target.
+        x_n = X[n]
+        y_n = y[n]
+
+        # Calculate the prediction error.
+        error = np.dot(theta, x_n) - y_n
+
+        # Obtain the learning rate for the current update.
+        eta = eta_fn(t)
+
+        # Apply the LMS update.
+        theta = theta - eta * error * x_n
+
+        # Store the updated parameter vector.
+        path[t] = theta
+
+    return path
+
