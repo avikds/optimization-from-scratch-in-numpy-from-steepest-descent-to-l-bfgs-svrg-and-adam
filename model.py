@@ -1676,3 +1676,195 @@ def projected_gd(grad, theta0, lower, upper, eta, n_iter):
 
     return path
 
+# Step 24 - active_set_qp
+def kkt_residuals(H, c, A, b, theta, mu):
+    # Convert all inputs to floating-point NumPy arrays.
+    H = np.asarray(H, dtype=float)
+    c = np.asarray(c, dtype=float)
+    A = np.asarray(A, dtype=float)
+    b = np.asarray(b, dtype=float)
+    theta = np.asarray(theta, dtype=float)
+    mu = np.asarray(mu, dtype=float)
+
+    # Calculate constraint violations: A @ theta - b.
+    violations = A @ theta - b
+
+    # 1. Primal feasibility residual.
+    primal = (
+        max(0.0, float(np.max(violations)))
+        if violations.size > 0
+        else 0.0
+    )
+
+    # 2. Stationarity residual:
+    # H @ theta + c + A.T @ mu = 0.
+    stationarity_vector = H @ theta + c + A.T @ mu
+
+    stationarity = (
+        float(np.max(np.abs(stationarity_vector)))
+        if stationarity_vector.size > 0
+        else 0.0
+    )
+
+    # 3. Dual feasibility residual: mu >= 0.
+    dual = (
+        max(0.0, float(np.max(-mu)))
+        if mu.size > 0
+        else 0.0
+    )
+
+    # 4. Complementarity residual:
+    # mu * (A @ theta - b) = 0.
+    complementarity_vector = mu * violations
+
+    complementarity = (
+        float(np.max(np.abs(complementarity_vector)))
+        if complementarity_vector.size > 0
+        else 0.0
+    )
+
+    # Return all KKT residuals as Python floats.
+    return {
+        "primal": primal,
+        "stationarity": stationarity,
+        "dual": dual,
+        "complementarity": complementarity
+    }
+
+
+def active_set_qp(H, c, A, b, theta0, max_iter=100, tol=1e-9):
+    # Convert inputs to floating-point NumPy arrays.
+    H = np.asarray(H, dtype=float)
+    c = np.asarray(c, dtype=float)
+    A = np.asarray(A, dtype=float)
+    b = np.asarray(b, dtype=float)
+
+    # Create a floating-point copy of the feasible starting point.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Initialize an empty working set.
+    # It stores the indices of active constraints.
+    working_set = []
+
+    # Number of constraints.
+    n_constraints = len(b)
+
+    for _ in range(max_iter):
+
+        # Calculate the gradient of the quadratic objective.
+        grad = H @ theta + c
+
+        # --------------------------------------------------
+        # Step 1: Solve the equality-constrained QP system.
+        # --------------------------------------------------
+
+        if working_set:
+            # Extract the rows corresponding to active constraints.
+            A_W = A[working_set]
+
+            # Number of active constraints.
+            n_active = len(working_set)
+
+            # Construct the KKT system.
+            KKT = np.block([
+                [H, A_W.T],
+                [A_W, np.zeros((n_active, n_active))]
+            ])
+
+            # Construct the right-hand side.
+            rhs = np.concatenate((
+                -grad,
+                np.zeros(n_active)
+            ))
+
+            # Solve for the search direction and working-set multipliers.
+            solution = np.linalg.solve(KKT, rhs)
+
+            p = solution[:len(theta)]
+            mu_W = solution[len(theta):]
+
+        else:
+            # With an empty working set, solve the unconstrained
+            # Newton direction system.
+            p = np.linalg.solve(H, -grad)
+
+            mu_W = np.empty(0, dtype=float)
+
+        # --------------------------------------------------
+        # Step 2: Check whether the search direction is zero.
+        # --------------------------------------------------
+
+        if np.linalg.norm(p) <= tol:
+
+            # If the working set is empty or all multipliers
+            # are sufficiently nonnegative, the solution is optimal.
+            if not working_set or np.min(mu_W) >= -tol:
+
+                # Construct the complete multiplier vector.
+                mu = np.zeros(n_constraints, dtype=float)
+
+                # Assign multipliers to the active constraints.
+                if working_set:
+                    mu[working_set] = mu_W
+
+                return theta, mu
+
+            # Otherwise, remove the constraint with the most
+            # negative multiplier from the working set.
+            remove_position = int(np.argmin(mu_W))
+            del working_set[remove_position]
+
+            # Recalculate the search direction.
+            continue
+
+        # --------------------------------------------------
+        # Step 3: Calculate the maximum feasible step length.
+        # --------------------------------------------------
+
+        alpha = 1.0
+        blocking_constraint = None
+
+        # Identify constraints that are not currently active.
+        working_set_indices = set(working_set)
+
+        for i in range(n_constraints):
+
+            # Skip constraints already in the working set.
+            if i in working_set_indices:
+                continue
+
+            # Calculate the directional derivative of constraint i.
+            a_i_p = np.dot(A[i], p)
+
+            # Only constraints with positive directional derivative
+            # can block movement along the search direction.
+            if a_i_p > tol:
+
+                # Calculate the maximum feasible step for constraint i.
+                alpha_i = (
+                    b[i] - np.dot(A[i], theta)
+                ) / a_i_p
+
+                # Identify the first blocking constraint.
+                if alpha_i < alpha:
+                    alpha = float(alpha_i)
+                    blocking_constraint = i
+
+        # --------------------------------------------------
+        # Step 4: Update the current solution.
+        # --------------------------------------------------
+
+        theta = theta + alpha * p
+
+        # --------------------------------------------------
+        # Step 5: Add the blocking constraint if one exists.
+        # --------------------------------------------------
+
+        if blocking_constraint is not None:
+            working_set.append(blocking_constraint)
+
+    # Raise an error if the algorithm does not converge.
+    raise RuntimeError(
+        "Active-set QP solver did not converge within max_iter iterations."
+    )
+
