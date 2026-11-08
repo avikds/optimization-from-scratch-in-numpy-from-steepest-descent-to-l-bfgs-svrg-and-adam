@@ -13,6 +13,7 @@ python scaffold.py
 - [x] **1.** make_quadratic
 - [x] **2.** valley_loss
 - [x] **3.** LogisticProblem
+- [x] **4.** gd_fixed
 
 ---
 

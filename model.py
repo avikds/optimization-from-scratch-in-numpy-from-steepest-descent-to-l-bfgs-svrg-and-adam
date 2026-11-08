@@ -276,3 +276,30 @@ class LogisticProblem:
         # Record the current passes and objective value without charging.
         self.ledger.append((self.passes, self.value(w)))
 
+# Step 4 - gd_fixed
+def gd_fixed(grad, theta0, eta, n_iter):
+    # Create a floating-point copy of the initial parameters.
+    # This ensures theta0 is not modified.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Store the initial point and every subsequent iterate.
+    path = np.empty((n_iter + 1, theta.size), dtype=float)
+    path[0] = theta
+
+    # Perform fixed-step gradient descent.
+    for t in range(n_iter):
+        theta = theta - eta * np.asarray(grad(theta), dtype=float)
+
+        # Store the current iterate.
+        path[t + 1] = theta
+
+    return path
+
+
+def max_stable_step(A):
+    # Calculate the eigenvalues of the symmetric matrix.
+    eigenvalues = np.linalg.eigvalsh(A)
+
+    # Maximum stable step size: 2 / largest eigenvalue.
+    return float(2.0 / eigenvalues[-1])
+
