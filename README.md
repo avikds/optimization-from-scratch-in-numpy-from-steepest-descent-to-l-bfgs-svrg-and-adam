@@ -35,6 +35,7 @@ python scaffold.py
 - [x] **23.** projected_gd
 - [x] **24.** active_set_qp
 - [x] **25.** simplex_lp
+- [x] **26.** ista
 
 ---
 

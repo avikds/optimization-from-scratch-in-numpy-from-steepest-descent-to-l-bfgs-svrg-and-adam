@@ -2003,3 +2003,76 @@ def klee_minty(D):
 
     return c, A, b
 
+# Step 26 - ista
+def soft_threshold(theta, lam):
+    # Convert the input to a floating-point NumPy array.
+    theta = np.asarray(theta, dtype=float)
+
+    # Apply the element-wise soft-thresholding operator.
+    # sign(theta) * max(|theta| - lambda, 0)
+    return np.sign(theta) * np.maximum(np.abs(theta) - lam, 0.0)
+
+
+def ista(X, y, lam, n_iter):
+    # Convert inputs to floating-point NumPy arrays.
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float).reshape(-1)
+
+    # Obtain the number of training examples and features.
+    N, D = X.shape
+
+    # Calculate the largest eigenvalue of X.T @ X.
+    lambda_max = np.linalg.eigvalsh(X.T @ X)[-1]
+
+    # Handle the degenerate case where X contains only zeros.
+    if lambda_max <= 0.0:
+        return np.zeros(D, dtype=float)
+
+    # Step size specified in the instructions.
+    eta = N / lambda_max
+
+    # Initialize the parameter vector to zero.
+    w = np.zeros(D, dtype=float)
+
+    # Perform proximal gradient descent.
+    for _ in range(n_iter):
+        # Calculate the gradient of the smooth least-squares term.
+        grad = X.T @ (X @ w - y) / N
+
+        # Take a gradient descent step followed by soft thresholding.
+        w = soft_threshold(
+            w - eta * grad,
+            eta * lam
+        )
+
+    return w
+
+
+def subgradient_lasso(X, y, lam, n_iter, eta0=0.1):
+    # Convert inputs to floating-point NumPy arrays.
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float).reshape(-1)
+
+    # Number of training examples and features.
+    N, D = X.shape
+
+    # Initialize the parameter vector to zero.
+    w = np.zeros(D, dtype=float)
+
+    # Perform subgradient descent.
+    for t in range(n_iter):
+        # Calculate the diminishing learning rate.
+        eta = eta0 / np.sqrt(t + 1)
+
+        # Gradient of the smooth least-squares term.
+        grad = X.T @ (X @ w - y) / N
+
+        # Add the L1 regularization subgradient.
+        # np.sign(0) = 0 is a valid subgradient choice.
+        grad = grad + lam * np.sign(w)
+
+        # Update the parameters.
+        w = w - eta * grad
+
+    return w
+
