@@ -15,6 +15,7 @@ python scaffold.py
 - [x] **3.** LogisticProblem
 - [x] **4.** gd_fixed
 - [x] **5.** steepest_descent_exact
+- [x] **6.** steepest_descent_armijo
 
 ---
 

@@ -397,3 +397,85 @@ def observed_rates(losses, loss_star):
 
     return rates
 
+# Step 6 - steepest_descent_armijo
+def armijo_backtrack(f, theta, d, g, eta0=1.0, c=1e-4, rho=0.5, max_halvings=60):
+    # Convert inputs to floating-point NumPy arrays.
+    theta = np.asarray(theta, dtype=float)
+    d = np.asarray(d, dtype=float)
+    g = np.asarray(g, dtype=float)
+
+    # Evaluate the objective at the current point.
+    f_theta = f(theta)
+
+    # Calculate the directional derivative.
+    directional_derivative = np.dot(g, d)
+
+    # Start with the initial trial step size.
+    eta = float(eta0)
+
+    # Try at most max_halvings candidate step sizes.
+    for _ in range(max_halvings):
+        # Evaluate the objective at the trial point.
+        f_trial = f(theta + eta * d)
+
+        # Check the Armijo sufficient-decrease condition.
+        if f_trial <= f_theta + c * eta * directional_derivative:
+            return float(eta)
+
+        # Reduce the step size after a failed trial.
+        eta *= rho
+
+    # Return the step size after the final reduction if no trial passed.
+    return float(eta)
+
+
+def steepest_descent_armijo(f, grad, theta0, n_iter, eta0=1.0, c=1e-4, rho=0.5, warm_start=False):
+    # Create a floating-point copy of the initial parameters.
+    # This ensures theta0 is not modified.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Store every iterate, starting with theta0.
+    path = np.empty((n_iter + 1, theta.size), dtype=float)
+    path[0] = theta
+
+    # Store the previously accepted step size for warm starting.
+    previous_eta = None
+
+    # Perform steepest descent iterations.
+    for t in range(n_iter):
+        # Calculate the gradient at the current point.
+        g = np.asarray(grad(theta), dtype=float)
+
+        # Steepest descent direction.
+        d = -g
+
+        # Determine the initial trial step size.
+        if warm_start and t > 0:
+            # Start from twice the previous accepted step size.
+            trial_eta0 = 2.0 * previous_eta
+        else:
+            # Use the original initial step size.
+            trial_eta0 = eta0
+
+        # Find the step size using Armijo backtracking.
+        eta = armijo_backtrack(
+            f,
+            theta,
+            d,
+            g,
+            eta0=trial_eta0,
+            c=c,
+            rho=rho
+        )
+
+        # Update the parameters.
+        theta = theta + eta * d
+
+        # Remember the accepted step size.
+        previous_eta = eta
+
+        # Store the current iterate.
+        path[t + 1] = theta
+
+    return path
+
