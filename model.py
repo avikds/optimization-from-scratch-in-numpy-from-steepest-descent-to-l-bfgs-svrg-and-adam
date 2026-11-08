@@ -1049,3 +1049,84 @@ def lms(X, y, theta0, eta_fn, n_updates):
 
     return path
 
+# Step 16 - lr_schedule
+def lr_schedule(
+    kind,
+    t,
+    eta0=1.0,
+    gamma=0.9,
+    every=10,
+    lam=0.1,
+    beta=1.0,
+    alpha=0.5,
+    t_warm=10,
+    t_total=100,
+    period=20,
+    eta_min=0.0
+):
+    # Constant learning-rate schedule.
+    if kind == "constant":
+        eta = eta0
+
+    # Piecewise constant schedule (step decay).
+    elif kind == "piecewise":
+        eta = eta0 * gamma ** (t // every)
+
+    # Exponential decay schedule.
+    elif kind == "exponential":
+        eta = eta0 * np.exp(-lam * t)
+
+    # Polynomial decay schedule.
+    elif kind == "polynomial":
+        eta = eta0 * (beta * t + 1) ** (-alpha)
+
+    # Warmup followed by cosine decay.
+    elif kind == "warmup_cosine":
+        if t < t_warm:
+            # Linear warmup phase.
+            eta = eta0 * (t + 1) / t_warm
+        else:
+            # Cosine decay phase.
+            frac = (t - t_warm) / max(1, t_total - t_warm)
+
+            eta = eta0 * 0.5 * (
+                1.0 + np.cos(np.pi * min(frac, 1.0))
+            )
+
+    # Triangular cyclic learning-rate schedule.
+    elif kind == "triangular":
+        phase = (t % period) / period
+
+        eta = eta_min + (eta0 - eta_min) * (
+            1.0 - abs(2.0 * phase - 1.0)
+        )
+
+    else:
+        raise ValueError(f"Unknown learning-rate schedule: {kind}")
+
+    return float(eta)
+
+
+def robbins_monro_ratio(kind, T, **params):
+    # Evaluate the learning-rate schedule for t = 0, ..., T-1.
+    etas = np.array(
+        [
+            lr_schedule(kind, t, **params)
+            for t in range(T)
+        ],
+        dtype=float
+    )
+
+    # Calculate the sum of squared learning rates.
+    sum_squared = np.sum(etas ** 2)
+
+    # Calculate the sum of learning rates.
+    sum_linear = np.sum(etas)
+
+    # Avoid division by zero.
+    if sum_linear == 0.0:
+        raise ValueError("The sum of learning rates must be nonzero.")
+
+    # Return the Robbins-Monro ratio as a Python float.
+    return float(sum_squared / sum_linear)
+

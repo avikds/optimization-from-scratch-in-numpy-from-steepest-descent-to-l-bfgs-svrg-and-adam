@@ -25,6 +25,7 @@ python scaffold.py
 - [x] **13.** lbfgs_direction
 - [x] **14.** lbfgs_minimize
 - [x] **15.** lms
+- [x] **16.** lr_schedule
 
 ---
 
