@@ -28,6 +28,7 @@ python scaffold.py
 - [x] **16.** lr_schedule
 - [x] **17.** sgd_minibatch
 - [x] **18.** svrg
+- [x] **19.** saga
 
 ---
 

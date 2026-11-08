@@ -1252,3 +1252,53 @@ def svrg(problem, w0, eta, n_epochs, inner=None, seed=0):
     # Return the final parameters.
     return w
 
+# Step 19 - saga
+def saga(problem, w0, eta, n_steps, seed=0):
+    # Initialize the random number generator.
+    rng = np.random.default_rng(seed)
+
+    # Create a floating-point copy of the initial parameters.
+    w = np.array(w0, dtype=float, copy=True)
+
+    # Initialize the gradient table using the starting parameters.
+    # Each row stores the gradient for one training example.
+    table = np.array(
+        [problem.grad_i(w, n) for n in range(problem.N)],
+        dtype=float
+    )
+
+    # Initialize the average of all stored gradients.
+    g_avg = table.mean(axis=0)
+
+    # Record the initial objective value without additional cost.
+    problem.checkpoint(w)
+
+    # Perform the specified number of SAGA updates.
+    for t in range(n_steps):
+
+        # Randomly select one training example.
+        n = int(rng.integers(problem.N))
+
+        # Calculate the new gradient for the selected example.
+        g_new = problem.grad_i(w, n)
+
+        # Calculate the SAGA variance-reduced gradient estimator.
+        g = g_new - table[n] + g_avg
+
+        # Update the average gradient using the difference
+        # between the new and previously stored gradients.
+        g_avg = g_avg + (g_new - table[n]) / problem.N
+
+        # Replace the old gradient with the newly calculated gradient.
+        table[n] = g_new
+
+        # Update the model parameters.
+        w = w - eta * g
+
+        # Record a checkpoint after every N updates.
+        if (t + 1) % problem.N == 0:
+            problem.checkpoint(w)
+
+    # Return the final parameters and gradient table.
+    return w, table
+
