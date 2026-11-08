@@ -1431,3 +1431,52 @@ def run_stochastic(problem, w0, update, n_epochs, batch_size=32, seed=0):
     # Return the final optimized parameters.
     return w
 
+# Step 21 - adam_update
+def adam_update(theta, g, state, eta=0.001, beta1=0.9, beta2=0.999, eps=1e-6, bias_correct=True):
+    # Convert inputs to floating-point NumPy arrays.
+    theta = np.asarray(theta, dtype=float)
+    g = np.asarray(g, dtype=float)
+
+    # Retrieve the previous iteration count.
+    t = state.get("t", 0) + 1
+
+    # Retrieve the previous first and second moments.
+    # Initialize both with zeros if this is the first update.
+    m_old = np.asarray(
+        state.get("m", np.zeros_like(g)),
+        dtype=float
+    )
+
+    s_old = np.asarray(
+        state.get("s", np.zeros_like(g)),
+        dtype=float
+    )
+
+    # Update the first moment (exponential moving average of gradients).
+    m = beta1 * m_old + (1.0 - beta1) * g
+
+    # Update the second moment (exponential moving average of squared gradients).
+    s = beta2 * s_old + (1.0 - beta2) * g**2
+
+    # Apply bias correction when enabled.
+    if bias_correct:
+        m_hat = m / (1.0 - beta1**t)
+        s_hat = s / (1.0 - beta2**t)
+    else:
+        # Use the uncorrected moments.
+        m_hat = m
+        s_hat = s
+
+    # Apply the Adam parameter update.
+    # Epsilon is added outside the square root.
+    new_theta = theta - eta * m_hat / (np.sqrt(s_hat) + eps)
+
+    # Store the uncorrected moments in a new state dictionary.
+    new_state = {
+        "t": t,
+        "m": m,
+        "s": s
+    }
+
+    return new_theta, new_state
+

@@ -30,6 +30,7 @@ python scaffold.py
 - [x] **18.** svrg
 - [x] **19.** saga
 - [x] **20.** adagrad_update
+- [x] **21.** adam_update
 
 ---
 
