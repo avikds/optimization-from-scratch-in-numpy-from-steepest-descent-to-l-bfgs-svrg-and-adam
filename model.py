@@ -926,3 +926,66 @@ def lbfgs_direction(g, s_list, y_list):
     # Return the L-BFGS search direction.
     return -r
 
+# Step 14 - lbfgs_minimize
+def lbfgs_minimize(f, grad, theta0, memory=10, n_iter=500, tol=1e-8):
+    # Create a floating-point copy of the initial parameters.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Initialize empty lists for storing parameter and gradient differences.
+    # Pairs are stored from oldest to newest.
+    s_list = []
+    y_list = []
+
+    # Store all iterates, starting with the initial point.
+    path = [theta.copy()]
+
+    for _ in range(n_iter):
+        # Calculate the gradient at the current point.
+        g = np.asarray(grad(theta), dtype=float)
+
+        # Stop if the gradient norm is sufficiently small.
+        if np.linalg.norm(g) <= tol:
+            break
+
+        # Calculate the L-BFGS search direction using two-loop recursion.
+        d = lbfgs_direction(g, s_list, y_list)
+
+        # Determine the step size using the weak Wolfe line search.
+        eta = wolfe_line_search(
+            f,
+            grad,
+            theta,
+            d
+        )
+
+        # Calculate the next parameter vector.
+        theta_new = theta + eta * d
+
+        # Calculate the parameter difference.
+        s = theta_new - theta
+
+        # Calculate the gradient difference.
+        g_new = np.asarray(grad(theta_new), dtype=float)
+        y = g_new - g
+
+        # Update the stored pairs only when the curvature condition
+        # is sufficiently positive.
+        if np.dot(y, s) > 1e-12:
+            # Store copies of the new parameter and gradient differences.
+            s_list.append(s.copy())
+            y_list.append(y.copy())
+
+            # Remove the oldest pair if memory capacity is exceeded.
+            if len(s_list) > memory:
+                s_list.pop(0)
+                y_list.pop(0)
+
+        # Accept the new parameter vector.
+        theta = theta_new
+
+        # Store the accepted iterate.
+        path.append(theta.copy())
+
+    # Return the complete iteration path.
+    return np.array(path, dtype=float)
+

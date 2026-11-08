@@ -23,6 +23,7 @@ python scaffold.py
 - [x] **11.** wolfe_line_search
 - [x] **12.** bfgs_minimize
 - [x] **13.** lbfgs_direction
+- [x] **14.** lbfgs_minimize
 
 ---
 
