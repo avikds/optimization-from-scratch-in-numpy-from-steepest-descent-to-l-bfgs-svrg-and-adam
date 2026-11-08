@@ -62,3 +62,45 @@ def quadratic_grad(theta, A, b):
     # Gradient of the quadratic objective: A @ theta + b
     return A @ theta + b
 
+# Step 2 - valley_loss
+def valley_loss(theta):
+    # Convert theta to a NumPy array.
+    theta = np.asarray(theta, dtype=float)
+
+    x, y = theta
+
+    # Calculate the curved valley objective function.
+    loss = 0.5 * (x**2 - y)**2 + 0.5 * (x - 1)**2
+
+    return float(loss)
+
+
+def valley_grad(theta):
+    # Convert theta to a NumPy array.
+    theta = np.asarray(theta, dtype=float)
+
+    x, y = theta
+
+    # Calculate the gradient analytically.
+    grad = np.array([
+        2.0 * x * (x**2 - y) + (x - 1.0),
+        y - x**2
+    ], dtype=float)
+
+    return grad
+
+
+def valley_hessian(theta):
+    # Convert theta to a NumPy array.
+    theta = np.asarray(theta, dtype=float)
+
+    x, y = theta
+
+    # Calculate the Hessian matrix analytically.
+    hessian = np.array([
+        [6.0 * x**2 - 2.0 * y + 1.0, -2.0 * x],
+        [-2.0 * x, 1.0]
+    ], dtype=float)
+
+    return hessian
+

@@ -11,6 +11,7 @@ python scaffold.py
 ## Steps
 
 - [x] **1.** make_quadratic
+- [x] **2.** valley_loss
 
 ---
 
