@@ -36,6 +36,7 @@ python scaffold.py
 - [x] **24.** active_set_qp
 - [x] **25.** simplex_lp
 - [x] **26.** ista
+- [x] **27.** prox_quant
 
 ---
 

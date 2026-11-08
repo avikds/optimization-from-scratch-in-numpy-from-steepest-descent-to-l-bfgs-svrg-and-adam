@@ -2076,3 +2076,72 @@ def subgradient_lasso(X, y, lam, n_iter, eta0=0.1):
 
     return w
 
+# Step 27 - prox_quant
+def quantize(theta):
+    # Convert the input to a floating-point NumPy array.
+    theta = np.asarray(theta, dtype=float)
+
+    # Quantize weights to {-1, +1}.
+    # np.sign(0) is explicitly replaced with +1.
+    return np.where(theta >= 0.0, 1.0, -1.0)
+
+
+def prox_quant(theta, lam):
+    # Convert the input to a floating-point NumPy array.
+    theta = np.asarray(theta, dtype=float)
+
+    # Obtain the binary quantized weights.
+    q = quantize(theta)
+
+    # Calculate the difference between latent and binary weights.
+    diff = theta - q
+
+    # Apply soft thresholding to the difference.
+    thresholded = (
+        np.sign(diff)
+        * np.maximum(np.abs(diff) - lam, 0.0)
+    )
+
+    # Return the proximal quantization result.
+    return q + thresholded
+
+
+def binary_connect(grad, theta0, eta, n_iter):
+    # Create a floating-point copy of the latent parameters.
+    # This ensures theta0 is not modified.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Perform BinaryConnect updates.
+    for _ in range(n_iter):
+        # Quantize the latent parameters before evaluating the gradient.
+        q = quantize(theta)
+
+        # Calculate the gradient at the quantized parameters.
+        g = np.asarray(grad(q), dtype=float)
+
+        # Update the real-valued latent parameters.
+        theta = theta - eta * g
+
+    # Return the final latent parameters.
+    return theta
+
+
+def prox_quant_train(grad, theta0, eta, lam_fn, n_iter):
+    # Create a floating-point copy of the initial parameters.
+    # This ensures theta0 is not modified.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Perform ProxQuant training updates.
+    for t in range(n_iter):
+        # Calculate the gradient at the current latent parameters.
+        g = np.asarray(grad(theta), dtype=float)
+
+        # Take a gradient descent step.
+        theta = theta - eta * g
+
+        # Apply the proximal quantization operator.
+        theta = prox_quant(theta, lam_fn(t))
+
+    # Return the final latent parameters.
+    return theta
+
