@@ -2562,3 +2562,335 @@ def em_failure_rate(D, map_estimation, N=100, K=3, trials=5, n_iter=30, seed=0):
     # Return the fraction of failed trials.
     return float(failures / trials)
 
+# Step 30 - solver_race
+def passes_to_gap(problem, f_star, gap0, tol):
+    # Track the best objective value encountered so far.
+    best_value = np.inf
+
+    # Examine the computation ledger in chronological order.
+    for passes, value in problem.ledger:
+        value = float(value)
+
+        # Update the best objective value.
+        if value < best_value:
+            best_value = value
+
+        # Handle a zero or negative initial objective gap.
+        if gap0 <= 0.0:
+            return float(passes)
+
+        # Calculate the best relative objective gap.
+        relative_gap = (best_value - f_star) / gap0
+
+        # Return the first pass count satisfying the tolerance.
+        if relative_gap <= tol:
+            return float(passes)
+
+    # Return None if the tolerance was never reached.
+    return None
+
+
+def gap_at_budget(problem, f_star, gap0, budget):
+    # Find all ledger entries within the specified budget.
+    eligible_values = [
+        float(value)
+        for passes, value in problem.ledger
+        if float(passes) <= budget + 1e-9
+    ]
+
+    # Return the default relative gap if no computation was recorded.
+    if not eligible_values:
+        return 1.0
+
+    # Find the best objective value within the budget.
+    best_value = min(eligible_values)
+
+    # Handle a zero or negative initial objective gap.
+    if gap0 <= 0.0:
+        return 0.0
+
+    # Calculate the relative objective gap and clip below at zero.
+    relative_gap = (best_value - f_star) / gap0
+
+    return float(max(0.0, relative_gap))
+
+
+def solver_race(X, y, lam, budget, tol=1e-6, vr_scale=1.0, seed=0):
+    # Convert the dataset to floating-point NumPy arrays.
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    # Obtain the dataset dimensions.
+    N, D = X.shape
+
+    # Initial parameter vector.
+    w0 = np.zeros(D, dtype=float)
+
+    # Number of iterations and epochs.
+    n = int(budget) + 1
+    epochs = int(budget)
+
+    # --------------------------------------------------
+    # Step 1: Find the reference optimal objective value.
+    # --------------------------------------------------
+
+    reference_problem = LogisticProblem(X, y, lam)
+
+    with np.errstate(all="ignore"):
+        reference_path = newton_minimize(
+            reference_problem.loss,
+            reference_problem.grad,
+            reference_problem.hess,
+            w0,
+            n_iter=50,
+            tol=1e-12
+        )
+
+    # Reference optimal objective value.
+    f_star = float(
+        reference_problem.value(reference_path[-1])
+    )
+
+    # Initial objective gap.
+    gap0 = float(
+        reference_problem.value(w0) - f_star
+    )
+
+    # --------------------------------------------------
+    # Step 2: Calculate the smoothness constants.
+    # --------------------------------------------------
+
+    # Largest eigenvalue of X.T @ X / N, plus L2 regularization.
+    L = float(
+        np.linalg.eigvalsh(X.T @ X / N)[-1] + lam
+    )
+
+    # Mean smoothness bound.
+    L_bar = float(
+        np.mean(np.sum(X**2, axis=1)) / 4.0 + lam
+    )
+
+    # Maximum individual-example smoothness bound.
+    L_max = max_smoothness(reference_problem)
+
+    # --------------------------------------------------
+    # Step 3: Initialize the optimization scoreboard.
+    # --------------------------------------------------
+
+    table = {}
+
+    # Helper to create a fresh problem for each solver,
+    # execute it, and record its performance.
+    def evaluate_solver(name, solver):
+        # Each solver receives an independent computation ledger.
+        problem = LogisticProblem(X, y, lam)
+
+        # Run the solver while suppressing numerical warnings.
+        with np.errstate(all="ignore"):
+            solver(problem)
+
+        # Calculate the first pass count at which tolerance is reached.
+        passes = passes_to_gap(
+            problem,
+            f_star,
+            gap0,
+            tol
+        )
+
+        # Do not report tolerance reached beyond the budget.
+        if passes is not None and passes > budget + 1e-9:
+            passes = None
+
+        # Calculate the best relative gap within the budget.
+        gap = gap_at_budget(
+            problem,
+            f_star,
+            gap0,
+            budget
+        )
+
+        # Store the solver's results.
+        table[name] = {
+            "passes_to_tol": passes,
+            "gap_at_budget": gap
+        }
+
+    # --------------------------------------------------
+    # Step 4: Gradient Descent with fixed step 1/L.
+    # --------------------------------------------------
+
+    evaluate_solver(
+        "GD, step 1/L",
+        lambda problem: gd_fixed(
+            problem.grad,
+            w0,
+            1.0 / L,
+            n
+        )
+    )
+
+    # --------------------------------------------------
+    # Step 5: Gradient Descent with Armijo warm starting.
+    # --------------------------------------------------
+
+    evaluate_solver(
+        "GD, Armijo warm",
+        lambda problem: steepest_descent_armijo(
+            problem.loss,
+            problem.grad,
+            w0,
+            n,
+            warm_start=True
+        )
+    )
+
+    # --------------------------------------------------
+    # Step 6: Nesterov accelerated gradient descent.
+    # --------------------------------------------------
+
+    eta_nag, beta_nag = tuned_momentum(
+        lam,
+        L
+    )["nesterov"]
+
+    evaluate_solver(
+        "Nesterov",
+        lambda problem: nesterov(
+            problem.grad,
+            w0,
+            eta_nag,
+            beta_nag,
+            n
+        )
+    )
+
+    # --------------------------------------------------
+    # Step 7: Newton's method.
+    # --------------------------------------------------
+
+    evaluate_solver(
+        "Newton",
+        lambda problem: newton_minimize(
+            problem.loss,
+            problem.grad,
+            problem.hess,
+            w0,
+            n_iter=1 + n // D
+        )
+    )
+
+    # --------------------------------------------------
+    # Step 8: Full BFGS.
+    # --------------------------------------------------
+
+    evaluate_solver(
+        "BFGS",
+        lambda problem: bfgs_minimize(
+            problem.loss,
+            problem.grad,
+            w0,
+            n_iter=n
+        )
+    )
+
+    # --------------------------------------------------
+    # Step 9: Limited-memory BFGS.
+    # --------------------------------------------------
+
+    evaluate_solver(
+        "L-BFGS(10)",
+        lambda problem: lbfgs_minimize(
+            problem.loss,
+            problem.grad,
+            w0,
+            memory=10,
+            n_iter=n
+        )
+    )
+
+    # --------------------------------------------------
+    # Step 10: Minibatch SGD with Polyak-Ruppert averaging.
+    # --------------------------------------------------
+
+    def run_sgd_averaged(problem):
+        out = sgd_minibatch(
+            problem,
+            w0,
+            lambda t: 1.0 / L_bar,
+            batch_size=8,
+            n_epochs=epochs,
+            seed=seed
+        )
+
+        # Explicitly record the averaged parameters.
+        problem.checkpoint(out["avg"])
+
+    evaluate_solver(
+        "SGD, averaged",
+        run_sgd_averaged
+    )
+
+    # --------------------------------------------------
+    # Step 11: Stochastic Variance Reduced Gradient.
+    # --------------------------------------------------
+
+    evaluate_solver(
+        "SVRG",
+        lambda problem: svrg(
+            problem,
+            w0,
+            vr_scale / L_max,
+            n_epochs=max(1, epochs // 3),
+            seed=seed
+        )
+    )
+
+    # --------------------------------------------------
+    # Step 12: Stochastic Average Gradient.
+    # --------------------------------------------------
+
+    evaluate_solver(
+        "SAGA",
+        lambda problem: saga(
+            problem,
+            w0,
+            vr_scale / (3.0 * L_max),
+            n_steps=max(1, (epochs - 1) * N),
+            seed=seed
+        )
+    )
+
+    # --------------------------------------------------
+    # Step 13: Adam.
+    # --------------------------------------------------
+
+    def adam_step(theta, g, state):
+        # Apply Adam with the specified learning rate.
+        return adam_update(
+            theta,
+            g,
+            state,
+            eta=0.01
+        )
+
+    evaluate_solver(
+        "Adam",
+        lambda problem: run_stochastic(
+            problem,
+            w0,
+            adam_step,
+            n_epochs=epochs,
+            batch_size=32,
+            seed=seed
+        )
+    )
+
+    # --------------------------------------------------
+    # Step 14: Return the final scoreboard.
+    # --------------------------------------------------
+
+    return {
+        "f_star": float(f_star),
+        "table": table
+    }
+
