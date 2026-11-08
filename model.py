@@ -866,3 +866,63 @@ def bfgs_minimize(f, grad, theta0, n_iter=200, tol=1e-8):
     # Return the complete iteration path and final inverse Hessian.
     return np.array(path, dtype=float), C
 
+# Step 13 - lbfgs_direction
+def lbfgs_direction(g, s_list, y_list):
+    # Convert the gradient into a floating-point copy.
+    # This ensures the original gradient is not modified.
+    q = np.array(g, dtype=float, copy=True)
+
+    # Store the parameter and gradient difference pairs.
+    # The pairs are ordered from oldest to newest.
+    pairs = list(zip(s_list, y_list))
+
+    # Store alpha and rho values for each pair.
+    alpha_values = [0.0] * len(pairs)
+    rho_values = [0.0] * len(pairs)
+
+    # First loop: process pairs from newest to oldest.
+    for i in range(len(pairs) - 1, -1, -1):
+        s = np.asarray(pairs[i][0], dtype=float)
+        y = np.asarray(pairs[i][1], dtype=float)
+
+        # Calculate the reciprocal curvature term.
+        rho = 1.0 / np.dot(y, s)
+
+        # Calculate alpha.
+        alpha = rho * np.dot(s, q)
+
+        # Store the values for the second loop.
+        rho_values[i] = rho
+        alpha_values[i] = alpha
+
+        # Update q.
+        q = q - alpha * y
+
+    # Step 2: Calculate the initial scaling factor.
+    if len(pairs) > 0:
+        # Use the newest stored pair.
+        s_new = np.asarray(pairs[-1][0], dtype=float)
+        y_new = np.asarray(pairs[-1][1], dtype=float)
+
+        gamma = np.dot(s_new, y_new) / np.dot(y_new, y_new)
+    else:
+        # Use the identity scaling when no pairs are available.
+        gamma = 1.0
+
+    # Initialize r using the scaling factor.
+    r = gamma * q
+
+    # Second loop: process pairs from oldest to newest.
+    for i in range(len(pairs)):
+        s = np.asarray(pairs[i][0], dtype=float)
+        y = np.asarray(pairs[i][1], dtype=float)
+
+        # Calculate beta.
+        beta = rho_values[i] * np.dot(y, r)
+
+        # Update r.
+        r = r + (alpha_values[i] - beta) * s
+
+    # Return the L-BFGS search direction.
+    return -r
+

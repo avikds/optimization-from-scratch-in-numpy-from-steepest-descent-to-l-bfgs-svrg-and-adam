@@ -22,6 +22,7 @@ python scaffold.py
 - [x] **10.** bfgs_update_inverse
 - [x] **11.** wolfe_line_search
 - [x] **12.** bfgs_minimize
+- [x] **13.** lbfgs_direction
 
 ---
 
