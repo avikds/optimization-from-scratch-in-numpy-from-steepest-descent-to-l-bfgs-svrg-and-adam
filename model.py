@@ -1868,3 +1868,138 @@ def active_set_qp(H, c, A, b, theta0, max_iter=100, tol=1e-9):
         "Active-set QP solver did not converge within max_iter iterations."
     )
 
+# Step 25 - simplex_lp
+def simplex_lp(c, A, b, max_iter=100000):
+    # Convert inputs to floating-point NumPy arrays.
+    c = np.asarray(c, dtype=float)
+    A = np.asarray(A, dtype=float)
+    b = np.asarray(b, dtype=float)
+
+    # Check input dimensions.
+    if c.ndim != 1 or A.ndim != 2 or b.ndim != 1:
+        raise ValueError("Invalid input dimensions.")
+
+    m, n = A.shape
+
+    if c.size != n or b.size != m:
+        raise ValueError("Incompatible dimensions for c, A, and b.")
+
+    # The initial slack-variable basis requires b >= 0.
+    if np.any(b < 0):
+        raise ValueError("The initial feasible basis requires b >= 0.")
+
+    # Build the initial simplex tableau:
+    # [A  I  b]
+    # [c  0  0]
+    tableau = np.zeros((m + 1, n + m + 1), dtype=float)
+
+    tableau[:m, :n] = A
+    tableau[:m, n:n + m] = np.eye(m)
+    tableau[:m, -1] = b
+
+    tableau[-1, :n] = c
+
+    # Initially, all slack variables are basic.
+    basis = list(range(n, n + m))
+
+    # Count the number of pivots.
+    pivots = 0
+
+    while True:
+        # Step 1: Select the entering variable using Dantzig's rule.
+        # Choose the smallest reduced cost, breaking ties by index.
+        j = int(np.argmin(tableau[-1, :-1]))
+
+        # Check whether the current solution is optimal.
+        if tableau[-1, j] >= -1e-10:
+
+            # Reconstruct the values of the original variables.
+            theta = np.zeros(n, dtype=float)
+
+            for i, basic_var in enumerate(basis):
+                if basic_var < n:
+                    theta[basic_var] = tableau[i, -1]
+
+            # Return the optimal solution.
+            return {
+                "theta": theta,
+                "value": float(c @ theta),
+                "status": "optimal",
+                "pivots": pivots
+            }
+
+        # Step 2: Identify eligible leaving rows.
+        # Only strictly positive column entries can leave the basis.
+        eligible = np.flatnonzero(
+            tableau[:m, j] > 1e-10
+        )
+
+        # If no eligible leaving row exists, the LP is unbounded.
+        if eligible.size == 0:
+            return {
+                "theta": None,
+                "value": -np.inf,
+                "status": "unbounded",
+                "pivots": pivots
+            }
+
+        # Step 3: Apply the minimum-ratio test.
+        ratios = (
+            tableau[eligible, -1]
+            / tableau[eligible, j]
+        )
+
+        # np.argmin selects the first row in case of ties.
+        leaving_row = int(eligible[np.argmin(ratios)])
+
+        # Check the pivot limit before performing another pivot.
+        if pivots >= max_iter:
+            raise RuntimeError(
+                "Simplex algorithm exceeded the maximum number of pivots."
+            )
+
+        # Step 4: Perform the pivot operation.
+        pivot = tableau[leaving_row, j]
+
+        # Normalize the pivot row.
+        tableau[leaving_row, :] /= pivot
+
+        # Eliminate the entering variable from all other rows,
+        # including the objective row.
+        for i in range(m + 1):
+            if i != leaving_row:
+                factor = tableau[i, j]
+                tableau[i, :] -= factor * tableau[leaving_row, :]
+
+        # Update the basis.
+        basis[leaving_row] = j
+
+        # Count the completed pivot.
+        pivots += 1
+
+
+def klee_minty(D):
+    # Initialize the objective coefficients, constraint matrix,
+    # and right-hand-side vector.
+    c = np.zeros(D, dtype=float)
+    A = np.zeros((D, D), dtype=float)
+    b = np.zeros(D, dtype=float)
+
+    # Construct the Klee-Minty cube.
+    for j in range(D):
+
+        # Diagonal coefficient.
+        A[j, j] = 1.0
+
+        # Coefficients below the diagonal.
+        for i in range(j):
+            A[j, i] = 2.0 ** (j - i + 1)
+
+        # Right-hand-side value.
+        b[j] = 5.0 ** (j + 1)
+
+        # Objective coefficient.
+        c[j] = -(2.0 ** (D - 1 - j))
+
+    return c, A, b
+
