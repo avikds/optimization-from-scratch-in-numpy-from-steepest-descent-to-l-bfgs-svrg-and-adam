@@ -1637,3 +1637,42 @@ def reddi_game(update, T, C=1010.0, every=101, small=10.0, alpha=0.5):
     # Return the final parameter and average regret as Python floats.
     return float(x[0]), float(regret / T)
 
+# Step 23 - projected_gd
+def project_box(theta, lower, upper):
+    # Convert theta to a floating-point NumPy array.
+    theta = np.asarray(theta, dtype=float)
+
+    # Project each element onto the interval [lower, upper].
+    projected = np.clip(theta, lower, upper)
+
+    return projected
+
+
+def projected_gd(grad, theta0, lower, upper, eta, n_iter):
+    # Create a floating-point copy of the initial parameters.
+    # This ensures theta0 is not modified.
+    theta = np.array(theta0, dtype=float, copy=True)
+
+    # Project the initial point onto the feasible box.
+    theta = project_box(theta, lower, upper)
+
+    # Store all iterates, beginning with the projected initial point.
+    path = np.empty((n_iter + 1, theta.size), dtype=float)
+    path[0] = theta
+
+    # Perform projected gradient descent.
+    for t in range(n_iter):
+        # Calculate the gradient at the current point.
+        g = np.asarray(grad(theta), dtype=float)
+
+        # Take a gradient descent step.
+        theta = theta - eta * g
+
+        # Project the updated parameters onto the feasible box.
+        theta = project_box(theta, lower, upper)
+
+        # Store the current iterate.
+        path[t + 1] = theta
+
+    return path
+

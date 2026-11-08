@@ -32,6 +32,7 @@ python scaffold.py
 - [x] **20.** adagrad_update
 - [x] **21.** adam_update
 - [x] **22.** reddi_game
+- [x] **23.** projected_gd
 
 ---
 
