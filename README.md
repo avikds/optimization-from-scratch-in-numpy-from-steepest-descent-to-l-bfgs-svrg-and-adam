@@ -92,16 +92,6 @@ python scaffold.py
      pi [0.356, 0.644], raw means [[2.04, 54.48], [4.29, 79.97]], raw log likelihood -1130.26
    Eq. 8.173 as printed: objective -1020 -> -8451, Sigma[0, 0] 0.0034. Corrected: objective ends at -361.49, monotone, Sigma[0, 0] 0.0542
    Figure 8.26(b), N = 100, K = 3, 20 trials: fraction failed (D, MLE, MAP)
-C:\Avik's Personal Folder\deep-ml-project\model.py:2256: RuntimeWarning: divide by zero encountered in log
-  np.log(pi[k])
-C:\Avik's Personal Folder\deep-ml-project\model.py:2390: RuntimeWarning: divide by zero encountered in log
-  prior_value = (alpha - 1.0) * np.sum(np.log(pi))
-C:\Avik's Personal Folder\deep-ml-project\model.py:2390: RuntimeWarning: invalid value encountered in scalar multiply
-  prior_value = (alpha - 1.0) * np.sum(np.log(pi))
-C:\Avik's Personal Folder\deep-ml-project\model.py:2288: RuntimeWarning: invalid value encountered in divide
-  mu = (r.T @ X) / Nk[:, np.newaxis]
-C:\Avik's Personal Folder\deep-ml-project\model.py:2261: RuntimeWarning: invalid value encountered in reduce
-  log_norm = np.logaddexp.reduce(log_joint, axis=1)
      [(5, 0.0, 0.0), (10, 0.25, 0.0), (20, 0.7, 0.0), (30, 0.9, 0.0), (40, 1.0, 0.0), (60, 1.0, 0.0), (80, 1.0, 0.0), (100, 1.0, 0.0)]
 
 6. The scoreboard: passes over the data to a 1e-6 relative gap, and the gap at the budget
