@@ -752,3 +752,64 @@ def bfgs_update_inverse(C, s, y):
 
     return C_new
 
+# Step 11 - wolfe_line_search
+def wolfe_line_search(f, grad, theta, d, eta0=1.0, c1=1e-4, c2=0.9, max_iter=40):
+    # Convert inputs to floating-point NumPy arrays.
+    theta = np.asarray(theta, dtype=float)
+    d = np.asarray(d, dtype=float)
+
+    # Evaluate the objective and gradient at the initial point.
+    f0 = float(f(theta))
+    g0 = np.asarray(grad(theta), dtype=float)
+
+    # Initial directional derivative.
+    dg0 = np.dot(d, g0)
+
+    # Initialize the step-size bracket.
+    lo = 0.0
+    hi = np.inf
+
+    # Initial trial step size.
+    eta = float(eta0)
+
+    for _ in range(max_iter):
+        # Evaluate the objective at the trial point.
+        theta_trial = theta + eta * d
+        f_trial = float(f(theta_trial))
+
+        # Check the Armijo sufficient-decrease condition.
+        armijo_rhs = f0 + c1 * eta * dg0
+
+        if f_trial > armijo_rhs:
+            # Armijo condition failed.
+            hi = eta
+
+            # Bisect the current interval.
+            eta = (lo + hi) / 2.0
+
+        else:
+            # Evaluate the gradient at the trial point.
+            g_trial = np.asarray(grad(theta_trial), dtype=float)
+
+            # Calculate the directional derivative at the trial point.
+            dg_trial = np.dot(d, g_trial)
+
+            # Check the weak Wolfe curvature condition.
+            if dg_trial < c2 * dg0:
+                # Curvature condition failed.
+                lo = eta
+
+                # Expand the step size if the upper bound is infinite.
+                if np.isinf(hi):
+                    eta = 2.0 * eta
+                else:
+                    # Otherwise, bisect the current interval.
+                    eta = (lo + hi) / 2.0
+
+            else:
+                # Both weak Wolfe conditions are satisfied.
+                return float(eta)
+
+    # Return the current step size if the maximum iterations are reached.
+    return float(eta)
+
